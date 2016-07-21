@@ -1,7 +1,7 @@
 pro load_res_mf,fres,mcres,minmaxsad,out_struct=out_struct,dobin=dobin,nzero=nzero, nrep=nrep, iout=iout,$
                 ires=ires,nsplit=nsplit,overwrite=overwrite,mres=mres,dres=dres,mcount=mcount,dcount=dcount,nsimb=nsimb,nsimf=nsimf,$
                 nproc=nproc, nodir=nodir,fkey=fkey,restry=restry,mmstry=mmstry,feedback=feedback,ipol=ipol,mpow=mpow,unnorm=unnorm,$
-                nopeaks=nopeaks, gnorm=gnorm, lnorm=lnorm,mfnorm=mfnorm
+                nopeaks=nopeaks, gnorm=gnorm, lnorm=lnorm,mfnorm=mfnorm,old_peaks=old_peaks,phiu=phiu
 
 ;;read spectra from cmb sim:
 
@@ -16,7 +16,7 @@ pro load_res_mf,fres,mcres,minmaxsad,out_struct=out_struct,dobin=dobin,nzero=nze
   if not keyword_set(gnorm) then gnorm=1d0
   if not keyword_set(lnorm) then lnorm=1d0
 
-
+  
 ;print,'out_struct defined or not: type=',size(out_struct,/type)
 ;help, out_struct
 
@@ -44,7 +44,8 @@ pro load_res_mf,fres,mcres,minmaxsad,out_struct=out_struct,dobin=dobin,nzero=nze
 
 
 
-  if not keyword_set(nopeaks) then begin    
+  if not keyword_set(nopeaks) then begin
+     if not keyword_set(phiu) then phiu = linspace(-3,3,nsteps)
      minmaxsad=dblarr(nsteps,3,nj,nsim)
      tminmaxsad=lindgen(1,3,nj,nsim)
      norm_count=dblarr(nsteps,3,nj)
@@ -105,12 +106,29 @@ pro load_res_mf,fres,mcres,minmaxsad,out_struct=out_struct,dobin=dobin,nzero=nze
 
         mcres[*,*,*,i]=res0
 
-        if not keyword_set(nopeaks) then begin        
-           file=fres+'.unf_minmaxsad_insim'+simno+fend
-           if feedback gt 1 then print, 'minmax file: ',file
-           runf,res0_count,file
-           
-           norm_count=double(res0_count[1:nsteps,*,*,*])
+        if not keyword_set(nopeaks) then begin
+           if keyword_set(old_peaks) then begin
+              file=fres+'.unf_minmaxsad_insim'+simno+fend
+              runf,res0_count,file
+              
+           endif else begin
+              
+              for ij=0,nj-1 do begin           
+                 ;file=fres+'.unf_ipix_val_map'+simno+fend+'_j'+str(ij)           
+
+                 ;; if phiu is given, vmaxima etc. are pdf of maxima etc.
+                 peaks_pix=read_mf_peaks(fres,i,ij,iminima=iminima,vminima=vminima,phiu=phiu,$
+                                         imaxima=imaxima,vmaxima=vmaxima,rms=rms,avg=avg,$                             
+                                         isaddle=isaddle,vsaddle=vsaddle,minmax=minmaxb, $
+                                         /nopmap,/nested, /inring) ;; ,pixrad=pixrad)
+
+                 res0_count[1:nsteps,0,ij]=vminima
+                 res0_count[1:nsteps,1,ij]=vmaxima
+                 res0_count[1:nsteps,2,ij]=vsaddle                 
+              endfor              
+              norm_count=double(res0_count[1:nsteps,*,*,*])
+              
+           endelse
            
            tminmaxsad[*,*,*,i]=res0_count[0,*,*,*]
            minmaxsad[*,*,*,i]=norm_count

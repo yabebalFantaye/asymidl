@@ -2,7 +2,7 @@ function read_mf_peaks, froot, isim,ifwhm, avg=avg,rms=rms,minmax=minmax,in_nsid
                         nside=nside,nomap=nomap,pixrad=pixrad,iminima=iminima,vminima=vminima,$
                         imaxima=imaxima,vmaxima=vmaxima,isaddle=isaddle,vsaddle=vsaddle,$
                         nested=nested,nopmap=nopmap,hbins=hbins, inring=inring,$
-                        vhot=vhot, vcold=vcold
+                        vhot=vhot, vcold=vcold, phiu=phiu
 
   if n_params() lt 3 then begin
      print, 'usage: read_mf_peaks, froot, isim,ifwhm, avg=avg,rms=rms,minmax=minmax,peakmaps=peakmaps,in_nside=in_nside,nside=nside,nomap=nomap'
@@ -31,7 +31,7 @@ function read_mf_peaks, froot, isim,ifwhm, avg=avg,rms=rms,minmax=minmax,in_nsid
 
   npeaks=0L
 
-  print, 'isim, ifwhm',isim, ifwhm  
+  ;;print, 'isim, ifwhm',isim, ifwhm  
   openr,unit,froot+'.unf_ipix_val_map'+strn(isim)+'_j'+strn(ifwhm),/f77
 
   ;;read min, max, avg and rms for map and its 1st derivative
@@ -158,6 +158,12 @@ function read_mf_peaks, froot, isim,ifwhm, avg=avg,rms=rms,minmax=minmax,in_nsid
         vsaddle=(histogram(vsaddle,nbins=n_elements(hbins),min=min(hbins),max=max(hbins)))/n_elements(vsaddle)
      endif
 
+     if keyword_set(phiu) then begin
+        vminima=(histogram(vminima,nbins=n_elements(phiu),min=min(phiu),max=max(phiu)))
+        vmaxima=(histogram(vmaxima,nbins=n_elements(phiu),min=min(phiu),max=max(phiu)))
+        vsaddle=(histogram(vsaddle,nbins=n_elements(phiu),min=min(phiu),max=max(phiu)))
+     endif
+     
      if keyword_set(nopmap) then peakmaps=imaxima
 
   endif

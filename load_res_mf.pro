@@ -1,7 +1,7 @@
 pro load_res_mf,fres,mcres,minmaxsad,out_struct=out_struct,dobin=dobin,nzero=nzero, nrep=nrep, iout=iout,$
                 ires=ires,nsplit=nsplit,overwrite=overwrite,mres=mres,dres=dres,mcount=mcount,dcount=dcount,nsimb=nsimb,nsimf=nsimf,$
                 nproc=nproc, nodir=nodir,fkey=fkey,restry=restry,mmstry=mmstry,feedback=feedback,ipol=ipol,mpow=mpow,unnorm=unnorm,$
-                nopeaks=nopeaks, gnorm=gnorm, lnorm=lnorm,mfnorm=mfnorm,old_peaks=old_peaks,phiu=phiu
+                nopeaks=nopeaks, gnorm=gnorm, lnorm=lnorm,mfnorm=mfnorm,peakmap=peakmap,phiu=phiu
 
 ;;read spectra from cmb sim:
 
@@ -107,7 +107,8 @@ pro load_res_mf,fres,mcres,minmaxsad,out_struct=out_struct,dobin=dobin,nzero=nze
         mcres[*,*,*,i]=res0
 
         if not keyword_set(nopeaks) then begin
-           if keyword_set(old_peaks) then begin
+           
+           if not keyword_set(peakmap) then begin
               file=fres+'.unf_minmaxsad_insim'+simno+fend
               runf,res0_count,file
               
@@ -126,10 +127,12 @@ pro load_res_mf,fres,mcres,minmaxsad,out_struct=out_struct,dobin=dobin,nzero=nze
                  res0_count[1:nsteps,1,ij]=vmaxima
                  res0_count[1:nsteps,2,ij]=vsaddle                 
               endfor              
-              norm_count=double(res0_count[1:nsteps,*,*,*])
               
            endelse
-           
+           ;;temp=res0_count[0,0,*,*]
+           ;;res0_count[0,0,*,*]=temp-res0_count[1,0,*,*]+res0_count[2,0,*,*]
+           res0_count[1,0,*,*]=res0_count[2,0,*,*]           
+           norm_count=double(res0_count[1:nsteps,*,*,*])           
            tminmaxsad[*,*,*,i]=res0_count[0,*,*,*]
            minmaxsad[*,*,*,i]=norm_count
         endif
@@ -159,6 +162,10 @@ pro load_res_mf,fres,mcres,minmaxsad,out_struct=out_struct,dobin=dobin,nzero=nze
      minmaxsad=minmaxsad[*,*,*,0:nsim-1]
      minmaxsad_diff = minmaxsad
      minmaxsad_ratio = minmaxsad
+
+     extrema = reform(minmaxsad[*,0,*,*] + minmaxsad[*,1,*,*])        
+     crit = reform(minmaxsad[*,0,*,*]+minmaxsad[*,1,*,*]+minmaxsad[*,2,*,*])
+     
      res_count = reform(minmaxsad[*,*,*,ires])
      help, res_count
   endif
@@ -205,12 +212,13 @@ pro load_res_mf,fres,mcres,minmaxsad,out_struct=out_struct,dobin=dobin,nzero=nze
         fmcount = dirout+'mcount_'+name+ext
         fdcount = dirout+'dcount_'+name+ext
 
+        ;;mean and variance of the 
+        ;;total number of critical points
         mtcount=dblarr(nj)
-        dtcount=mtcount
-        ttt = (total(minmaxsad[*,0,*,*]+minmaxsad[*,1,*,*]+minmaxsad[*,2,*,*],1))
+        dtcount=mtcount        
         for k=0,nj-1 do begin              
-           mtcount[k]=mean(reform(ttt[0,k,*]))
-           dtcount[k]=stdev(reform(ttt[0,k,*]))
+           mtcount[k]=mean(reform(total(crit[*,0,k,*],dimension=1)))
+           dtcount[k]=stddev(reform(total(crit[*,0,k,*],dimension=1)))
         endfor
         
         mcrit=dblarr(nsteps,nj)
@@ -254,11 +262,27 @@ pro load_res_mf,fres,mcres,minmaxsad,out_struct=out_struct,dobin=dobin,nzero=nze
 
 
               ;;peaks stat
-              if not keyword_set(nopeaks) then begin        
+              if not keyword_set(nopeaks) then begin
+                 ;;norm minmaxsad
 
-                 ttt=reform(total(minmaxsad[j:nsteps-1,0,k,*]+minmaxsad[j:nsteps-1,1,k,*]+minmaxsad[j:nsteps-1,2,k,*],1))
-                 mcrit[j,k]=mean(ttt)
-                 dcrit[j,k]=stdev(ttt)
+                 ;;cdf of criticals
+                 ttt_cdf=reform(total(minmaxsad[j:nsteps-1,0,k,*],1))/reform(total(minmaxsad[*,0,k,*],1))+$
+                                  reform(total(minmaxsad[j:nsteps-1,1,k,*],1))/reform(total(minmaxsad[*,1,k,*],1))+$
+                     reform(total(minmaxsad[j:nsteps-1,2,k,*],1))/reform(total(minmaxsad[*,2,k,*],1))
+
+                 ;;pdf of critical
+                 ttt_pdf=reform(minmaxsad[j,0,k,*])/reform(total(minmaxsad[*,0,k,*],1))+$
+                                  reform(minmaxsad[j,1,k,*])/reform(total(minmaxsad[*,1,k,*],1))+$
+                                  reform(minmaxsad[j,2,k,*])/reform(total(minmaxsad[*,2,k,*],1))
+                 
+                 ;;ttt=reform(minmaxsad[j,0,k,*]+minmaxsad[j,1,k,*]+minmaxsad[j,2,k,*]) ;;/ $
+;;                     (tminmaxsad[0,0,k,*]+tminmaxsad[0,1,k,*]+tminmaxsad[0,2,k,*])
+                 mcrit[j,k]=mean(ttt_pdf)
+                 dcrit[j,k]=stdev(ttt_cdf)
+
+                 ;; minmaxsad[j,0,k,*] = minmaxsad[j,0,k,*]/tminmaxsad[0,0,k,*] ;;minima
+                 ;; minmaxsad[j,1,k,*] = minmaxsad[j,1,k,*]/tminmaxsad[0,1,k,*] ;;maxima
+                 ;; minmaxsad[j,2,k,*] = minmaxsad[j,2,k,*]/tminmaxsad[0,2,k,*] ;;saddle
                  
                  for i=0,2 do begin                               
                     mcount[j,i,k]=mean(minmaxsad[j,i,k,*])
@@ -415,5 +439,7 @@ pro load_res_mf,fres,mcres,minmaxsad,out_struct=out_struct,dobin=dobin,nzero=nze
 
      out_struct = replicate(out_struct,nrep)
   endif 
-  
+
+
+
 end
